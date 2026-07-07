@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>What's in my kitchen?</title>
+  <style>
+    :root{
+      --bg:#fff7f0; --card:#ffffff; --ink:#2b2b2b; --muted:#8a8a8a;
+      --accent:#ff7a45; --accent-soft:#ffe6d8; --line:#f0e6de; --ok:#31a24c;
+      --shadow:0 6px 20px rgba(0,0,0,.06);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",
+        "Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+      background:var(--bg); color:var(--ink); line-height:1.5;
+    }
+    .wrap{max-width:920px; margin:0 auto; padding:24px 18px 60px}
+    header{text-align:center; margin-bottom:20px}
+    header h1{font-size:28px; margin:0 0 6px}
+    header p{margin:0; color:var(--muted); font-size:15px}
+
+    .panel{
+      background:var(--card); border:1px solid var(--line); border-radius:16px;
+      padding:18px; box-shadow:var(--shadow); margin-bottom:20px;
+    }
+    .panel h2{font-size:16px; margin:0 0 12px; display:flex; align-items:center; gap:8px}
+    .search{
+      width:100%; padding:11px 14px; font-size:15px; border:1px solid var(--line);
+      border-radius:10px; outline:none; margin-bottom:14px; background:#fffdfb;
+    }
+    .search:focus{border-color:var(--accent)}
+
+    .chips{display:flex; flex-wrap:wrap; gap:8px}
+    .chip{
+      border:1px solid var(--line); background:#fffdfb; color:var(--ink);
+      padding:7px 12px; border-radius:999px; font-size:14px; cursor:pointer;
+      transition:all .12s ease; user-select:none;
+    }
+    .chip:hover{border-color:var(--accent)}
+    .chip.on{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+
+    .selected-bar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-height:20px}
+    .selected-bar .empty{color:var(--muted); font-size:14px}
+    .tag{
+      background:var(--accent-soft); color:#c94f1d; padding:6px 10px; border-radius:999px;
+      font-size:13px; font-weight:600; display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    }
+    .tag span.x{font-weight:700}
+    .clear-btn{
+      margin-left:auto; background:none; border:none; color:var(--muted);
+      font-size:13px; cursor:pointer; text-decoration:underline;
+    }
+
+    .results-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px}
+    .results-head h2{margin:0}
+    .count{color:var(--muted); font-size:14px}
+
+    .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px}
+    .recipe{
+      background:var(--card); border:1px solid var(--line); border-radius:14px;
+      padding:16px; box-shadow:var(--shadow); cursor:pointer; transition:transform .12s ease;
+      display:flex; flex-direction:column;
+    }
+    .recipe:hover{transform:translateY(-3px)}
+    .recipe .top{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+    .recipe .emoji{font-size:30px}
+    .recipe .name{font-size:17px; font-weight:700}
+    .recipe .meta{color:var(--muted); font-size:13px; margin-bottom:10px}
+    .recipe .match{
+      font-size:13px; margin-bottom:10px; font-weight:600;
+    }
+    .recipe.full .match{color:var(--ok)}
+    .recipe .bar{height:6px; background:var(--line); border-radius:999px; overflow:hidden; margin-bottom:10px}
+    .recipe .bar > i{display:block; height:100%; background:var(--accent)}
+    .recipe.full .bar > i{background:var(--ok)}
+    .ing-list{display:flex; flex-wrap:wrap; gap:6px}
+    .ing{font-size:12px; padding:3px 8px; border-radius:6px; background:#f4f4f4; color:#666}
+    .ing.have{background:var(--accent-soft); color:#c94f1d}
+    .empty-state{text-align:center; color:var(--muted); padding:40px 10px}
+
+    /* modal */
+    .overlay{
+      position:fixed; inset:0; background:rgba(0,0,0,.45); display:none;
+      align-items:center; justify-content:center; padding:20px; z-index:10;
+    }
+    .overlay.on{display:flex}
+    .modal{
+      background:#fff; border-radius:18px; max-width:460px; width:100%;
+      max-height:88vh; overflow:auto; padding:24px;
+    }
+    .modal .m-top{display:flex; align-items:center; gap:12px; margin-bottom:6px}
+    .modal .m-emoji{font-size:38px}
+    .modal h3{margin:0; font-size:22px}
+    .modal .m-meta{color:var(--muted); font-size:14px; margin-bottom:16px}
+    .modal h4{margin:18px 0 8px; font-size:14px; color:var(--accent)}
+    .modal ol{margin:0; padding-left:20px}
+    .modal ol li{margin-bottom:10px}
+    .modal .close{
+      margin-top:20px; width:100%; padding:12px; border:none; border-radius:10px;
+      background:var(--accent); color:#fff; font-size:15px; font-weight:600; cursor:pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🍳 냉장고에 뭐 있지?</h1>
+      <p>가지고 있는 재료를 골라보세요. 만들 수 있는 요리를 추천해 드려요!</p>
+    </header>
+
+    <div class="panel">
+      <h2>🧺 재료 고르기</h2>
+      <input id="ingSearch" class="search" type="text" placeholder="재료 검색 (예: 계란, 김치)…" />
+      <div id="chips" class="chips"></div>
+    </div>
+
+    <div class="panel">
+      <h2>✅ 선택한 재료</h2>
+      <div class="selected-bar">
+        <div id="selected" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        <button id="clearBtn" class="clear-btn" style="display:none">모두 지우기</button>
+      </div>
+    </div>
+
+    <div class="results-head">
+      <h2>🍽️ 추천 요리</h2>
+      <span id="count" class="count"></span>
+    </div>
+    <div id="results" class="grid"></div>
+    <div id="emptyState" class="empty-state" style="display:none"></div>
+  </div>
+
+  <div id="overlay" class="overlay">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="recipes.js"></script>
+  <script>
+    (function () {
+      var RECIPES = (window.RECIPES || []);
+      var selected = new Set();
+
+      // 모든 재료를 빈도순으로 모으기
+      var freq = {};
+      RECIPES.forEach(function (r) {
+        r.ing.forEach(function (i) { freq[i] = (freq[i] || 0) + 1; });
+      });
+      var allIngredients = Object.keys(freq).sort(function (a, b) {
+        return freq[b] - freq[a] || a.localeCompare(b, 'ko');
+      });
+
+      var chipsEl = document.getElementById('chips');
+      var searchEl = document.getElementById('ingSearch');
+      var selectedEl = document.getElementById('selected');
+      var clearBtn = document.getElementById('clearBtn');
+      var resultsEl = document.getElementById('results');
+      var countEl = document.getElementById('count');
+      var emptyStateEl = document.getElementById('emptyState');
+      var overlay = document.getElementById('overlay');
+      var modal = document.getElementById('modal');
+
+      function renderChips() {
+        var q = searchEl.value.trim().toLowerCase();
+        chipsEl.innerHTML = '';
+        allIngredients
+          .filter(function (i) { return !q || i.toLowerCase().indexOf(q) !== -1; })
+          .forEach(function (ing) {
+            var c = document.createElement('div');
+            c.className = 'chip' + (selected.has(ing) ? ' on' : '');
+            c.textContent = ing;
+            c.onclick = function () { toggle(ing); };
+            chipsEl.appendChild(c);
+          });
+      }
+
+      function renderSelected() {
+        selectedEl.innerHTML = '';
+        if (selected.size === 0) {
+          var e = document.createElement('div');
+          e.className = 'empty';
+          e.textContent = '아직 선택한 재료가 없어요.';
+          selectedEl.appendChild(e);
+          clearBtn.style.display = 'none';
+          return;
+        }
+        clearBtn.style.display = 'inline';
+        Array.from(selected).forEach(function (ing) {
+          var t = document.createElement('span');
+          t.className = 'tag';
+          t.innerHTML = ing + ' <span class="x">×</span>';
+          t.onclick = function () { toggle(ing); };
+          selectedEl.appendChild(t);
+        });
+      }
+
+      function toggle(ing) {
+        if (selected.has(ing)) selected.delete(ing);
+        else selected.add(ing);
+        renderChips();
+        renderSelected();
+        renderResults();
+      }
+
+      function scored() {
+        return RECIPES.map(function (r) {
+          var have = r.ing.filter(function (i) { return selected.has(i); });
+          return {
+            recipe: r,
+            have: have.length,
+            total: r.ing.length,
+            missing: r.ing.length - have.length,
+            ratio: have.length / r.ing.length
+          };
+        });
+      }
+
+      function renderResults() {
+        var list;
+        if (selected.size === 0) {
+          // 선택 전에는 전체 목록을 그냥 보여준다
+          list = scored();
+          countEl.textContent = '전체 ' + list.length + '개';
+        } else {
+          list = scored()
+            .filter(function (s) { return s.have > 0; })
+            .sort(function (a, b) {
+              if (b.ratio !== a.ratio) return b.ratio - a.ratio;
+              if (a.missing !== b.missing) return a.missing - b.missing;
+              return b.have - a.have;
+            });
+          var makeable = list.filter(function (s) { return s.missing === 0; }).length;
+          countEl.textContent = list.length + '개 추천' +
+            (makeable ? ' · 바로 만들 수 있는 요리 ' + makeable + '개' : '');
+        }
+
+        resultsEl.innerHTML = '';
+        if (list.length === 0) {
+          emptyStateEl.style.display = 'block';
+          emptyStateEl.textContent = '앗! 선택한 재료로 만들 수 있는 요리를 찾지 못했어요. 다른 재료를 골라보세요.';
+          return;
+        }
+        emptyStateEl.style.display = 'none';
+
+        list.forEach(function (s) {
+          var r = s.recipe;
+          var card = document.createElement('div');
+          card.className = 'recipe' + (selected.size && s.missing === 0 ? ' full' : '');
+
+          var ingHtml = r.ing.map(function (i) {
+            return '<span class="ing' + (selected.has(i) ? ' have' : '') + '">' + i + '</span>';
+          }).join('');
+
+          var matchHtml = '';
+          if (selected.size > 0) {
+            var pct = Math.round(s.ratio * 100);
+            matchHtml =
+              '<div class="match">' +
+                (s.missing === 0
+                  ? '👍 바로 만들 수 있어요!'
+                  : '재료 ' + s.have + '/' + s.total + ' · ' + s.missing + '개 부족') +
+              '</div>' +
+              '<div class="bar"><i style="width:' + pct + '%"></i></div>';
+          }
+
+          card.innerHTML =
+            '<div class="top"><span class="emoji">' + r.emoji + '</span>' +
+            '<span class="name">' + r.name + '</span></div>' +
+            '<div class="meta">⏱ ' + r.time + ' · 난이도 ' + r.diff + '</div>' +
+            matchHtml +
+            '<div class="ing-list">' + ingHtml + '</div>';
+
+          card.onclick = function () { openModal(r); };
+          resultsEl.appendChild(card);
+        });
+      }
+
+      function openModal(r) {
+        var stepsHtml = r.steps.map(function (s) { return '<li>' + s + '</li>'; }).join('');
+        var ingHtml = r.ing.map(function (i) {
+          return '<span class="ing' + (selected.has(i) ? ' have' : '') + '">' + i + '</span>';
+        }).join('');
+        modal.innerHTML =
+          '<div class="m-top"><span class="m-emoji">' + r.emoji + '</span>' +
+          '<h3>' + r.name + '</h3></div>' +
+          '<div class="m-meta">⏱ ' + r.time + ' · 난이도 ' + r.diff + '</div>' +
+          '<h4>필요한 재료</h4>' +
+          '<div class="ing-list">' + ingHtml + '</div>' +
+          '<h4>만드는 법</h4>' +
+          '<ol>' + stepsHtml + '</ol>' +
+          '<button class="close" id="closeBtn">닫기</button>';
+        overlay.classList.add('on');
+        document.getElementById('closeBtn').onclick = closeModal;
+      }
+
+      function closeModal() { overlay.classList.remove('on'); }
+      overlay.onclick = function (e) { if (e.target === overlay) closeModal(); };
+
+      searchEl.addEventListener('input', renderChips);
+      clearBtn.onclick = function () {
+        selected.clear();
+        renderChips(); renderSelected(); renderResults();
+      };
+
+      renderChips();
+      renderSelected();
+      renderResults();
+    })();
+  </script>
+</body>
+</html>
